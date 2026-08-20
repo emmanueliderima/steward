@@ -1,0 +1,22 @@
+{
+  "name": "@steward/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:testnet": "hardhat run scripts/deploy.ts --network xlayerTestnet",
+    "deploy:mainnet": "hardhat run scripts/deploy.ts --network xlayerMainnet"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.10",
+    "hardhat": "^2.22.0",
+    "dotenv": "^16.4.5",
+    "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.2",
+    "chai": "^6.2.2"
+  }
+}

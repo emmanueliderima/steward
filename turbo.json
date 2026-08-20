@@ -1,0 +1,41 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "NODE_ENV", 
+    "OPENROUTER_API_KEY", 
+    "DEPLOYER_PRIVATE_KEY", 
+    "DEPLOYER_ADDRESS", 
+    "XLAYER_RPC_URL", 
+    "EXECUTOR_ADDRESS", 
+    "EXECUTOR_PRIVATE_KEY", 
+    "VAULT_FACTORY_ADDRESS",
+    "DATABASE_URL",
+    "AI_ENV",
+    "OPENROUTER_MODEL_TEST",
+    "OPENROUTER_MODEL_PROD",
+    "COINGECKO_API_KEY",
+    "REBALANCE_CRON",
+    "OKX_ROUTER_ADDRESS",
+    "OKX_API_KEY",
+    "OKX_API_SECRET",
+    "OKX_API_PASSPHRASE",
+    "OKX_CHAIN_INDEX"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "artifacts/**", "cache/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "compile": {
+      "outputs": ["artifacts/**", "cache/**"]
+    },
+    "test": {
+      "dependsOn": ["compile"]
+    },
+    "lint": {}
+  }
+}

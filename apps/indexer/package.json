@@ -1,0 +1,20 @@
+{
+  "name": "@steward/indexer",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun run --watch src/index.ts"
+  },
+  "dependencies": {
+    "@steward/contracts-sdk": "workspace:*",
+    "ethers": "^6.13.0",
+    "pg": "^8.12.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.6",
+    "typescript": "^5.5.0",
+    "@types/bun": "latest"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@steward/contracts-sdk",
+  "version": "0.1.0",
+  "main": "src/typechain/index.ts",
+  "module": "src/typechain/index.ts",
+  "types": "src/typechain/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/typechain/index.ts",
+      "default": "./src/typechain/index.ts"
+    }
+  },
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "@steward/shared-types": "workspace:*",
+    "@types/bun": "latest",
+    "ethers": "^6.13.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}
