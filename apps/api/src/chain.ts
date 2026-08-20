@@ -1,8 +1,17 @@
 import { ethers } from "ethers";
-import { Vault__factory, IERC20Metadata__factory } from "@steward/contracts-sdk";
+import {
+  Vault__factory,
+  VaultFactory__factory,
+  IERC20Metadata__factory,
+} from "@steward/contracts-sdk";
 import { config } from "./config";
 
 export const provider = new ethers.JsonRpcProvider(config.rpcUrl);
+
+export async function getVaultsByOwner(ownerAddress: string): Promise<string[]> {
+  const factory = VaultFactory__factory.connect(config.vaultFactoryAddress, provider);
+  return factory.getVaultsByOwner(ownerAddress);
+}
 
 export interface LiveVaultState {
   address: string;

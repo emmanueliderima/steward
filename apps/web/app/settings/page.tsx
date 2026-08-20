@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { RiskParams } from "@steward/shared-types";
 import { useWallet } from "@/lib/wallet";
@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 import { TopBar } from "@/components/Topbar";
 import { RiskParamForm } from "@/components/RiskParamsForm";
 
-export default function SettingsPage() {
+function SettingsPageContent() {
   const { address, connect } = useWallet();
   const searchParams = useSearchParams();
   const vaultAddress = searchParams.get("vault");
@@ -82,5 +82,20 @@ export default function SettingsPage() {
         </p>
       </main>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen">
+          <TopBar />
+          <main className="px-6 py-16 text-center text-sm text-text-lo">Loading settings…</main>
+        </div>
+      }
+    >
+      <SettingsPageContent />
+    </Suspense>
   );
 }

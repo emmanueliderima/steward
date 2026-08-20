@@ -12,6 +12,8 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const api = {
+  getConfig: () =>
+    get<{ vaultFactoryAddress: string; chainId: number }>("/config"),
   getVaultsByOwner: (owner: string) => get<{ vaults: string[] }>(`/vaults?owner=${owner}`),
   getSummary: (vaultAddress: string) => get<DashboardSummary>(`/vaults/${vaultAddress}/summary`),
   getRiskParams: (vaultAddress: string) => get<RiskParams>(`/vaults/${vaultAddress}/risk-params`),

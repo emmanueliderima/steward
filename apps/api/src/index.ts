@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { config } from "./config";
 import { buildDashboardSummary } from "./dashboard-summary";
+import { getVaultsByOwner } from "./chain";
 import * as db from "./db";
 
 const app = new Hono();
@@ -10,13 +11,34 @@ app.use("*", cors({ origin: config.corsOrigin }));
 
 app.get("/health", (c) => c.json({ ok: true }));
 
+// Public chain coordinates needed by the browser to create a vault. Contract
+// addresses and chain IDs are public; no RPC credentials or secrets are sent.
+app.get("/config", (c) =>
+  c.json({
+    vaultFactoryAddress: config.vaultFactoryAddress,
+    chainId: config.chainId,
+  })
+);
+
 // Vaults owned by a given address — the dashboard's "which vault am I
 // looking at" entry point once a wallet connects.
 app.get("/vaults", async (c) => {
   const owner = c.req.query("owner");
   if (!owner) return c.json({ error: "owner query param is required" }, 400);
-  const vaults = await db.getVaultsByOwner(owner.toLowerCase());
-  return c.json({ vaults });
+  if (!/^0x[0-9a-fA-F]{40}$/.test(owner)) {
+    return c.json({ error: "owner must be a valid EVM address" }, 400);
+  }
+
+  try {
+    // Ownership lives on-chain. Reading the factory directly means a vault is
+    // discoverable as soon as its creation transaction confirms, without
+    // waiting for the indexer's next database sync.
+    const vaults = await getVaultsByOwner(owner);
+    return c.json({ vaults });
+  } catch (err: any) {
+    console.error(`Failed to read vaults for ${owner}:`, err);
+    return c.json({ error: "Failed to read vaults from X Layer" }, 502);
+  }
 });
 
 // Total value, last rebalance, 30d return, next trigger, asset breakdown —
@@ -60,9 +82,9 @@ app.get("/vaults/:address/transfers", async (c) => {
   return c.json({ transfers });
 });
 
-console.log(`Steward API starting on port ${config.port}`);
+console.log(`Steward API starting on port 3001`);
 
 export default {
-  port: config.port,
+  port: 3001,
   fetch: app.fetch,
 };
