@@ -71,6 +71,122 @@ describe("Vault", () => {
       .withArgs(4500);
   });
 
+  it("lets only the owner replace the router and revokes old allowances", async () => {
+    const { vault, owner, other, executor, btc, rwa, router } = await loadFixture(deployFixture);
+    const MockOKXRouter = await ethers.getContractFactory("MockOKXRouter");
+    const replacementRouter = await MockOKXRouter.deploy();
+    const vaultAddress = await vault.getAddress();
+    const routerAddress = await router.getAddress();
+    const replacementAddress = await replacementRouter.getAddress();
+    const amountIn = ethers.parseEther("1");
+
+    await vault.connect(executor).executeRebalance(
+      [
+        {
+          tokenIn: await btc.getAddress(),
+          tokenOut: await rwa.getAddress(),
+          amountIn,
+          expectedAmountOut: 0,
+          minAmountOut: 0,
+          targetAllocationBps: 4000,
+          swapCalldata: router.interface.encodeFunctionData("leaveAllowanceUnspent"),
+        },
+      ],
+      ethers.encodeBytes32String("allowance-test")
+    );
+    expect(await btc.allowance(vaultAddress, routerAddress)).to.equal(amountIn);
+
+    await expect(vault.connect(other).updateOkxRouter(replacementAddress))
+      .to.be.revertedWithCustomError(vault, "NotOwner");
+
+    await expect(vault.connect(owner).updateOkxRouter(replacementAddress))
+      .to.emit(vault, "OkxRouterUpdated")
+      .withArgs(routerAddress, replacementAddress);
+
+    expect(await vault.okxRouter()).to.equal(replacementAddress);
+    expect(await btc.allowance(vaultAddress, routerAddress)).to.equal(0);
+  });
+
+  it("rejects an invalid or unchanged replacement router", async () => {
+    const { vault, owner, other, router } = await loadFixture(deployFixture);
+
+    await expect(vault.connect(owner).updateOkxRouter(ethers.ZeroAddress))
+      .to.be.revertedWithCustomError(vault, "InvalidRouter")
+      .withArgs(ethers.ZeroAddress);
+    await expect(vault.connect(owner).updateOkxRouter(other.address))
+      .to.be.revertedWithCustomError(vault, "InvalidRouter")
+      .withArgs(other.address);
+    await expect(vault.connect(owner).updateOkxRouter(await router.getAddress()))
+      .to.be.revertedWithCustomError(vault, "RouterUnchanged");
+  });
+
+  it("lets the factory owner update the default router for future vaults only", async () => {
+    const { factory, vault, owner, other, executor, btc, rwa, router } =
+      await loadFixture(deployFixture);
+    const MockOKXRouter = await ethers.getContractFactory("MockOKXRouter");
+    const replacementRouter = await MockOKXRouter.deploy();
+    const oldRouterAddress = await router.getAddress();
+    const replacementAddress = await replacementRouter.getAddress();
+
+    await expect(factory.connect(other).updateDefaultOkxRouter(replacementAddress))
+      .to.be.revertedWithCustomError(factory, "OwnableUnauthorizedAccount")
+      .withArgs(other.address);
+
+    await expect(factory.connect(owner).updateDefaultOkxRouter(replacementAddress))
+      .to.emit(factory, "DefaultOkxRouterUpdated")
+      .withArgs(oldRouterAddress, replacementAddress);
+
+    await factory
+      .connect(other)
+      .createVault(
+        [await btc.getAddress(), await rwa.getAddress()],
+        [6000, 4000],
+        200,
+        3600
+      );
+    const newVaultAddress = (await factory.getVaultsByOwner(other.address))[0]!;
+    const newVault = await ethers.getContractAt("Vault", newVaultAddress);
+
+    expect(await vault.okxRouter()).to.equal(oldRouterAddress);
+    expect(await newVault.okxRouter()).to.equal(replacementAddress);
+    expect(await newVault.executor()).to.equal(executor.address);
+  });
+
+  it("executes subsequent swaps through the replacement router", async () => {
+    const { vault, owner, executor, btc, rwa } = await loadFixture(deployFixture);
+    const MockOKXRouter = await ethers.getContractFactory("MockOKXRouter");
+    const replacementRouter = await MockOKXRouter.deploy();
+    const replacementAddress = await replacementRouter.getAddress();
+    const expectedOut = ethers.parseEther("25");
+
+    await rwa.mint(replacementAddress, expectedOut);
+    await vault.connect(owner).updateOkxRouter(replacementAddress);
+
+    const instruction = {
+      tokenIn: await btc.getAddress(),
+      tokenOut: await rwa.getAddress(),
+      amountIn: ethers.parseEther("0.5"),
+      expectedAmountOut: expectedOut,
+      minAmountOut: ethers.parseEther("24.5"),
+      targetAllocationBps: 2500,
+      swapCalldata: replacementRouter.interface.encodeFunctionData("swap", [
+        await btc.getAddress(),
+        ethers.parseEther("0.5"),
+        await rwa.getAddress(),
+        expectedOut,
+      ]),
+    };
+
+    await expect(
+      vault.connect(executor).executeRebalance(
+        [instruction],
+        ethers.encodeBytes32String("new-router")
+      )
+    ).to.emit(vault, "RebalanceExecuted");
+
+    expect(await btc.balanceOf(replacementAddress)).to.equal(ethers.parseEther("0.5"));
+  });
+
   it("reverts a rebalance that exceeds the owner's max allocation for an asset", async () => {
     const { vault, executor, btc, rwa, router } = await loadFixture(deployFixture);
 

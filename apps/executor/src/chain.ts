@@ -2,38 +2,59 @@ import { ethers } from "ethers";
 import { config } from "./config";
 import { Vault__factory, VaultFactory__factory, IERC20Metadata__factory } from "@steward/contracts-sdk";
 
-const rpcRequest = new ethers.FetchRequest(config.chain.rpcUrl);
-rpcRequest.timeout = 15_000;
-
-export const provider = new ethers.JsonRpcProvider(rpcRequest, undefined, {
-  staticNetwork: true,
-  // dRPC's free plan rejects JSON-RPC batches containing more than three
-  // requests. Concurrent vault reads must be sent independently.
-  batchMaxCount: 1,
+const providers = config.chain.rpcUrls.map((url) => {
+  const request = new ethers.FetchRequest(url);
+  request.timeout = 15_000;
+  return new ethers.JsonRpcProvider(request, config.chain.chainId, {
+    staticNetwork: true,
+    // Public RPC gateways may reject or mishandle JSON-RPC batches.
+    batchMaxCount: 1,
+  });
 });
-export const executorWallet = new ethers.Wallet(config.chain.executorPrivateKey, provider);
 
-export function getFactory() {
-  return VaultFactory__factory.connect(config.chain.vaultFactoryAddress, provider);
+async function withRpcRetry<T>(
+  operation: (provider: ethers.JsonRpcProvider) => Promise<T>,
+  attempts = Math.max(3, providers.length)
+): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const providerIndex = (attempt - 1) % providers.length;
+    const provider = providers[providerIndex]!;
+    try {
+      return await operation(provider);
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `X Layer RPC attempt ${attempt}/${attempts} failed via ${config.chain.rpcUrls[providerIndex]}:`,
+        error
+      );
+      if (attempt < attempts) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 400));
+      }
+    }
+  }
+
+  throw lastError;
 }
 
-export function getVault(address: string) {
-  // Connected to the executor wallet so it can also submit executeRebalance.
-  return Vault__factory.connect(address, executorWallet);
-}
-
-export function getErc20(address: string) {
-  return IERC20Metadata__factory.connect(address, provider);
+async function getHealthyProvider(): Promise<ethers.JsonRpcProvider> {
+  return withRpcRetry(async (provider) => {
+    await provider.getBlockNumber();
+    return provider;
+  });
 }
 
 export async function listAllVaults(): Promise<string[]> {
-  const factory = getFactory();
-  const total: bigint = await factory.totalVaults();
-  const addresses: string[] = [];
-  for (let i = 0n; i < total; i++) {
-    addresses.push(await factory.allVaults(i));
-  }
-  return addresses;
+  return withRpcRetry(async (provider) => {
+    const factory = VaultFactory__factory.connect(config.chain.vaultFactoryAddress, provider);
+    const total: bigint = await factory.totalVaults();
+    const addresses: string[] = [];
+    for (let i = 0n; i < total; i++) {
+      addresses.push(await factory.allVaults(i));
+    }
+    return addresses;
+  });
 }
 
 export interface VaultState {
@@ -51,7 +72,14 @@ export interface VaultState {
 }
 
 export async function readVaultState(vaultAddress: string): Promise<VaultState> {
-  const vault = getVault(vaultAddress);
+  return withRpcRetry((provider) => readVaultStateOnce(vaultAddress, provider));
+}
+
+async function readVaultStateOnce(
+  vaultAddress: string,
+  provider: ethers.JsonRpcProvider
+): Promise<VaultState> {
+  const vault = Vault__factory.connect(vaultAddress, provider);
 
   const [owner, okxRouter, allowedAssets, maxSlippageBps, minRebalanceInterval, lastRebalanceTimestamp] =
     await Promise.all([
@@ -69,7 +97,7 @@ export async function readVaultState(vaultAddress: string): Promise<VaultState> 
   const symbols: Record<string, string> = {};
 
   for (const asset of allowedAssets as string[]) {
-    const token = getErc20(asset);
+    const token = IERC20Metadata__factory.connect(asset, provider);
     const [cap, balance, dec, sym] = await Promise.all([
       vault.maxAllocationBps(asset),
       token.balanceOf(vaultAddress),
@@ -122,7 +150,11 @@ export async function submitRebalance(
   instructions: SwapInstructionInput[],
   reasoningId: string // 0x-prefixed bytes32
 ): Promise<ethers.ContractTransactionReceipt> {
-  const vault = getVault(vaultAddress);
+  // Select a responsive endpoint before signing. Do not retry sendTransaction:
+  // a timeout after broadcast is ambiguous and resending could duplicate work.
+  const provider = await getHealthyProvider();
+  const executorWallet = new ethers.Wallet(config.chain.executorPrivateKey, provider);
+  const vault = Vault__factory.connect(vaultAddress, executorWallet);
   const tx = await vault.executeRebalance(instructions, reasoningId);
   const receipt = await tx.wait();
   if (!receipt) throw new Error("executeRebalance transaction did not confirm");

@@ -22,13 +22,23 @@ import type {
 } from "../../../common";
 
 export interface MockOKXRouterInterface extends Interface {
-  getFunction(nameOrSignature: "swap"): FunctionFragment;
+  getFunction(
+    nameOrSignature: "leaveAllowanceUnspent" | "swap"
+  ): FunctionFragment;
 
+  encodeFunctionData(
+    functionFragment: "leaveAllowanceUnspent",
+    values?: undefined
+  ): string;
   encodeFunctionData(
     functionFragment: "swap",
     values: [AddressLike, BigNumberish, AddressLike, BigNumberish]
   ): string;
 
+  decodeFunctionResult(
+    functionFragment: "leaveAllowanceUnspent",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "swap", data: BytesLike): Result;
 }
 
@@ -75,6 +85,8 @@ export interface MockOKXRouter extends BaseContract {
     event?: TCEvent
   ): Promise<this>;
 
+  leaveAllowanceUnspent: TypedContractMethod<[], [void], "view">;
+
   swap: TypedContractMethod<
     [
       tokenIn: AddressLike,
@@ -90,6 +102,9 @@ export interface MockOKXRouter extends BaseContract {
     key: string | FunctionFragment
   ): T;
 
+  getFunction(
+    nameOrSignature: "leaveAllowanceUnspent"
+  ): TypedContractMethod<[], [void], "view">;
   getFunction(
     nameOrSignature: "swap"
   ): TypedContractMethod<

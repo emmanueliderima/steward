@@ -69,6 +69,7 @@ export interface VaultInterface extends Interface {
       | "minRebalanceInterval"
       | "okxRouter"
       | "owner"
+      | "updateOkxRouter"
       | "updateRiskParams"
       | "withdraw"
   ): FunctionFragment;
@@ -76,6 +77,7 @@ export interface VaultInterface extends Interface {
   getEvent(
     nameOrSignatureOrTopic:
       | "Deposited"
+      | "OkxRouterUpdated"
       | "RebalanceExecuted"
       | "RiskParamsUpdated"
       | "Withdrawn"
@@ -133,6 +135,10 @@ export interface VaultInterface extends Interface {
   encodeFunctionData(functionFragment: "okxRouter", values?: undefined): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
+    functionFragment: "updateOkxRouter",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
     functionFragment: "updateRiskParams",
     values: [BigNumberish[], BigNumberish, BigNumberish]
   ): string;
@@ -179,6 +185,10 @@ export interface VaultInterface extends Interface {
   decodeFunctionResult(functionFragment: "okxRouter", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(
+    functionFragment: "updateOkxRouter",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "updateRiskParams",
     data: BytesLike
   ): Result;
@@ -191,6 +201,22 @@ export namespace DepositedEvent {
   export interface OutputObject {
     token: string;
     amount: bigint;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace OkxRouterUpdatedEvent {
+  export type InputTuple = [
+    previousRouter: AddressLike,
+    newRouter: AddressLike
+  ];
+  export type OutputTuple = [previousRouter: string, newRouter: string];
+  export interface OutputObject {
+    previousRouter: string;
+    newRouter: string;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -341,6 +367,12 @@ export interface Vault extends BaseContract {
 
   owner: TypedContractMethod<[], [string], "view">;
 
+  updateOkxRouter: TypedContractMethod<
+    [newRouter: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+
   updateRiskParams: TypedContractMethod<
     [
       newMaxAllocationBps: BigNumberish[],
@@ -421,6 +453,9 @@ export interface Vault extends BaseContract {
     nameOrSignature: "owner"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
+    nameOrSignature: "updateOkxRouter"
+  ): TypedContractMethod<[newRouter: AddressLike], [void], "nonpayable">;
+  getFunction(
     nameOrSignature: "updateRiskParams"
   ): TypedContractMethod<
     [
@@ -445,6 +480,13 @@ export interface Vault extends BaseContract {
     DepositedEvent.InputTuple,
     DepositedEvent.OutputTuple,
     DepositedEvent.OutputObject
+  >;
+  getEvent(
+    key: "OkxRouterUpdated"
+  ): TypedContractEvent<
+    OkxRouterUpdatedEvent.InputTuple,
+    OkxRouterUpdatedEvent.OutputTuple,
+    OkxRouterUpdatedEvent.OutputObject
   >;
   getEvent(
     key: "RebalanceExecuted"
@@ -478,6 +520,17 @@ export interface Vault extends BaseContract {
       DepositedEvent.InputTuple,
       DepositedEvent.OutputTuple,
       DepositedEvent.OutputObject
+    >;
+
+    "OkxRouterUpdated(address,address)": TypedContractEvent<
+      OkxRouterUpdatedEvent.InputTuple,
+      OkxRouterUpdatedEvent.OutputTuple,
+      OkxRouterUpdatedEvent.OutputObject
+    >;
+    OkxRouterUpdated: TypedContractEvent<
+      OkxRouterUpdatedEvent.InputTuple,
+      OkxRouterUpdatedEvent.OutputTuple,
+      OkxRouterUpdatedEvent.OutputObject
     >;
 
     "RebalanceExecuted(uint256,bytes32,address[],address[],uint256[],uint256[])": TypedContractEvent<

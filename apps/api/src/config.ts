@@ -33,7 +33,7 @@ export const config = {
   testnetFaucetEnabled:
     chainId !== 196 && process.env.OKX_USE_MOCK_ROUTER === "true",
   databaseUrl: required("DATABASE_URL"),
-  port: Number(process.env.PORT ?? 3001),
+  port: Number(process.env.API_PORT ?? 3001),
   coingeckoApiKey: process.env.COINGECKO_API_KEY ?? "",
   mockPrices: {
     mBTC: positiveNumber("MOCK_MBTC_PRICE_USD", 60_000),

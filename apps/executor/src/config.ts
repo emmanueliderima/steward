@@ -15,10 +15,22 @@ function positiveNumber(key: string, fallback: number): number {
 }
 
 const useMockRouter = process.env.OKX_USE_MOCK_ROUTER === "true";
+const chainId = positiveNumber("XLAYER_CHAIN_ID", 196);
+const networkRpcUrl =
+  chainId === 196 ? process.env.XLAYER_MAINNET_RPC_URL : process.env.XLAYER_TESTNET_RPC_URL;
+const rpcUrls = [...new Set([process.env.XLAYER_RPC_URL, networkRpcUrl].filter(Boolean))] as string[];
+if (rpcUrls.length === 0) {
+  throw new Error(
+    `Missing required env var: XLAYER_RPC_URL or ${
+      chainId === 196 ? "XLAYER_MAINNET_RPC_URL" : "XLAYER_TESTNET_RPC_URL"
+    }`
+  );
+}
 
 export const config = {
   chain: {
-    rpcUrl: required("XLAYER_RPC_URL"),
+    rpcUrls,
+    chainId,
     vaultFactoryAddress: required("VAULT_FACTORY_ADDRESS"),
     executorPrivateKey: required("EXECUTOR_PRIVATE_KEY"),
   },

@@ -7,8 +7,13 @@ import { getVaultsByOwner } from "./chain";
 import * as db from "./db";
 
 const app = new Hono();
+const EVM_ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 
 app.use("*", cors({ origin: config.corsOrigin }));
+app.onError((err, c) => {
+  console.error(`Unhandled API error for ${c.req.method} ${c.req.path}:`, err);
+  return c.json({ error: "Something went wrong while processing this request." }, 500);
+});
 
 app.get("/health", (c) => c.json({ ok: true }));
 
@@ -27,7 +32,7 @@ app.get("/config", (c) =>
 app.get("/vaults", async (c) => {
   const owner = c.req.query("owner");
   if (!owner) return c.json({ error: "owner query param is required" }, 400);
-  if (!/^0x[0-9a-fA-F]{40}$/.test(owner)) {
+  if (!EVM_ADDRESS_PATTERN.test(owner)) {
     return c.json({ error: "owner must be a valid EVM address" }, 400);
   }
 
@@ -38,8 +43,14 @@ app.get("/vaults", async (c) => {
     const vaults = await getVaultsByOwner(owner);
     return c.json({ vaults });
   } catch (err: any) {
-    console.error(`Failed to read vaults for ${owner}:`, err);
-    return c.json({ error: "Failed to read vaults from X Layer" }, 502);
+    console.warn(`On-chain vault lookup failed for ${owner}; trying indexed data:`, err);
+    try {
+      const vaults = await db.getVaultsByOwner(owner);
+      return c.json({ vaults });
+    } catch (dbError) {
+      console.error(`Both on-chain and indexed vault lookup failed for ${owner}:`, dbError);
+      return c.json({ error: "We couldn't load your vaults right now." }, 503);
+    }
   }
 });
 
@@ -92,6 +103,6 @@ app.get("/vaults/:address/transfers", async (c) => {
   return c.json({ transfers });
 });
 
-serve({ fetch: app.fetch, port: 3001 }, (info) => {
+serve({ fetch: app.fetch, port: config.port }, (info) => {
   console.log(`Steward API listening on http://localhost:${info.port}`);
 });

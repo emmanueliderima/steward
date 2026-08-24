@@ -31,12 +31,21 @@ export interface VaultFactoryInterface extends Interface {
       | "defaultExecutor"
       | "getVaultsByOwner"
       | "okxRouter"
+      | "owner"
+      | "renounceOwnership"
       | "totalVaults"
+      | "transferOwnership"
+      | "updateDefaultOkxRouter"
       | "vaultImplementation"
       | "vaultsByOwner"
   ): FunctionFragment;
 
-  getEvent(nameOrSignatureOrTopic: "VaultCreated"): EventFragment;
+  getEvent(
+    nameOrSignatureOrTopic:
+      | "DefaultOkxRouterUpdated"
+      | "OwnershipTransferred"
+      | "VaultCreated"
+  ): EventFragment;
 
   encodeFunctionData(
     functionFragment: "allVaults",
@@ -55,9 +64,22 @@ export interface VaultFactoryInterface extends Interface {
     values: [AddressLike]
   ): string;
   encodeFunctionData(functionFragment: "okxRouter", values?: undefined): string;
+  encodeFunctionData(functionFragment: "owner", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "renounceOwnership",
+    values?: undefined
+  ): string;
   encodeFunctionData(
     functionFragment: "totalVaults",
     values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "transferOwnership",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "updateDefaultOkxRouter",
+    values: [AddressLike]
   ): string;
   encodeFunctionData(
     functionFragment: "vaultImplementation",
@@ -82,8 +104,21 @@ export interface VaultFactoryInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "okxRouter", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "renounceOwnership",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "totalVaults",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "transferOwnership",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "updateDefaultOkxRouter",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -94,6 +129,35 @@ export interface VaultFactoryInterface extends Interface {
     functionFragment: "vaultsByOwner",
     data: BytesLike
   ): Result;
+}
+
+export namespace DefaultOkxRouterUpdatedEvent {
+  export type InputTuple = [
+    previousRouter: AddressLike,
+    newRouter: AddressLike
+  ];
+  export type OutputTuple = [previousRouter: string, newRouter: string];
+  export interface OutputObject {
+    previousRouter: string;
+    newRouter: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace OwnershipTransferredEvent {
+  export type InputTuple = [previousOwner: AddressLike, newOwner: AddressLike];
+  export type OutputTuple = [previousOwner: string, newOwner: string];
+  export interface OutputObject {
+    previousOwner: string;
+    newOwner: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
 }
 
 export namespace VaultCreatedEvent {
@@ -175,7 +239,23 @@ export interface VaultFactory extends BaseContract {
 
   okxRouter: TypedContractMethod<[], [string], "view">;
 
+  owner: TypedContractMethod<[], [string], "view">;
+
+  renounceOwnership: TypedContractMethod<[], [void], "nonpayable">;
+
   totalVaults: TypedContractMethod<[], [bigint], "view">;
+
+  transferOwnership: TypedContractMethod<
+    [newOwner: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+
+  updateDefaultOkxRouter: TypedContractMethod<
+    [newRouter: AddressLike],
+    [void],
+    "nonpayable"
+  >;
 
   vaultImplementation: TypedContractMethod<[], [string], "view">;
 
@@ -214,8 +294,20 @@ export interface VaultFactory extends BaseContract {
     nameOrSignature: "okxRouter"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
+    nameOrSignature: "owner"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "renounceOwnership"
+  ): TypedContractMethod<[], [void], "nonpayable">;
+  getFunction(
     nameOrSignature: "totalVaults"
   ): TypedContractMethod<[], [bigint], "view">;
+  getFunction(
+    nameOrSignature: "transferOwnership"
+  ): TypedContractMethod<[newOwner: AddressLike], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "updateDefaultOkxRouter"
+  ): TypedContractMethod<[newRouter: AddressLike], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "vaultImplementation"
   ): TypedContractMethod<[], [string], "view">;
@@ -228,6 +320,20 @@ export interface VaultFactory extends BaseContract {
   >;
 
   getEvent(
+    key: "DefaultOkxRouterUpdated"
+  ): TypedContractEvent<
+    DefaultOkxRouterUpdatedEvent.InputTuple,
+    DefaultOkxRouterUpdatedEvent.OutputTuple,
+    DefaultOkxRouterUpdatedEvent.OutputObject
+  >;
+  getEvent(
+    key: "OwnershipTransferred"
+  ): TypedContractEvent<
+    OwnershipTransferredEvent.InputTuple,
+    OwnershipTransferredEvent.OutputTuple,
+    OwnershipTransferredEvent.OutputObject
+  >;
+  getEvent(
     key: "VaultCreated"
   ): TypedContractEvent<
     VaultCreatedEvent.InputTuple,
@@ -236,6 +342,28 @@ export interface VaultFactory extends BaseContract {
   >;
 
   filters: {
+    "DefaultOkxRouterUpdated(address,address)": TypedContractEvent<
+      DefaultOkxRouterUpdatedEvent.InputTuple,
+      DefaultOkxRouterUpdatedEvent.OutputTuple,
+      DefaultOkxRouterUpdatedEvent.OutputObject
+    >;
+    DefaultOkxRouterUpdated: TypedContractEvent<
+      DefaultOkxRouterUpdatedEvent.InputTuple,
+      DefaultOkxRouterUpdatedEvent.OutputTuple,
+      DefaultOkxRouterUpdatedEvent.OutputObject
+    >;
+
+    "OwnershipTransferred(address,address)": TypedContractEvent<
+      OwnershipTransferredEvent.InputTuple,
+      OwnershipTransferredEvent.OutputTuple,
+      OwnershipTransferredEvent.OutputObject
+    >;
+    OwnershipTransferred: TypedContractEvent<
+      OwnershipTransferredEvent.InputTuple,
+      OwnershipTransferredEvent.OutputTuple,
+      OwnershipTransferredEvent.OutputObject
+    >;
+
     "VaultCreated(address,address)": TypedContractEvent<
       VaultCreatedEvent.InputTuple,
       VaultCreatedEvent.OutputTuple,

@@ -41,11 +41,14 @@ contract Vault {
     error SlippageExceeded(uint16 requestedBps, uint16 maxBps);
     error RebalanceTooSoon(uint256 nextAllowedAt);
     error SwapFailed(address tokenOut);
+    error InvalidRouter(address router);
+    error RouterUnchanged();
 
     // ── Events ──────────────────────────────────────────────────────────────
     event Deposited(address indexed token, uint256 amount);
     event Withdrawn(address indexed token, uint256 amount);
     event RiskParamsUpdated();
+    event OkxRouterUpdated(address indexed previousRouter, address indexed newRouter);
     event RebalanceExecuted(
         uint256 indexed timestamp,
         bytes32 indexed reasoningId, // FK into the Postgres rebalance_events table
@@ -102,6 +105,9 @@ contract Vault {
     ) external initializer {
         require(allowedAssets_.length == maxAllocationBps_.length, "LengthMismatch");
         _validateAllocationCaps(maxAllocationBps_);
+        if (okxRouter_ == address(0) || okxRouter_.code.length == 0) {
+            revert InvalidRouter(okxRouter_);
+        }
 
         owner = owner_;
         executor = executor_;
@@ -143,6 +149,25 @@ contract Vault {
         maxSlippageBps = newMaxSlippageBps;
         minRebalanceInterval = newMinRebalanceInterval;
         emit RiskParamsUpdated();
+    }
+
+    /// @notice Replaces the OKX router if OKX migrates its DEX contracts.
+    /// @dev Any residual approvals to the previous router are revoked before
+    ///      the new router becomes active.
+    function updateOkxRouter(address newRouter) external onlyOwner nonReentrant {
+        if (newRouter == address(0) || newRouter.code.length == 0) {
+            revert InvalidRouter(newRouter);
+        }
+
+        address previousRouter = okxRouter;
+        if (newRouter == previousRouter) revert RouterUnchanged();
+
+        for (uint256 i = 0; i < allowedAssets.length; i++) {
+            IERC20(allowedAssets[i]).forceApprove(previousRouter, 0);
+        }
+
+        okxRouter = newRouter;
+        emit OkxRouterUpdated(previousRouter, newRouter);
     }
 
     function _validateAllocationCaps(uint16[] calldata caps) internal pure {
