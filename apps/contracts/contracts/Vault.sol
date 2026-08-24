@@ -35,6 +35,8 @@ contract Vault {
     error NotOwner();
     error NotExecutor();
     error AssetNotAllowed(address token);
+    error InvalidAllocationCap(uint16 capBps);
+    error InsufficientAllocationCapacity(uint256 totalBps);
     error AllocationExceeded(address token, uint16 requestedBps, uint16 maxBps);
     error SlippageExceeded(uint16 requestedBps, uint16 maxBps);
     error RebalanceTooSoon(uint256 nextAllowedAt);
@@ -99,6 +101,7 @@ contract Vault {
         uint32 minRebalanceInterval_
     ) external initializer {
         require(allowedAssets_.length == maxAllocationBps_.length, "LengthMismatch");
+        _validateAllocationCaps(maxAllocationBps_);
 
         owner = owner_;
         executor = executor_;
@@ -133,12 +136,22 @@ contract Vault {
         uint32 newMinRebalanceInterval
     ) external onlyOwner {
         require(newMaxAllocationBps.length == allowedAssets.length, "LengthMismatch");
+        _validateAllocationCaps(newMaxAllocationBps);
         for (uint256 i = 0; i < allowedAssets.length; i++) {
             maxAllocationBps[allowedAssets[i]] = newMaxAllocationBps[i];
         }
         maxSlippageBps = newMaxSlippageBps;
         minRebalanceInterval = newMinRebalanceInterval;
         emit RiskParamsUpdated();
+    }
+
+    function _validateAllocationCaps(uint16[] calldata caps) internal pure {
+        uint256 totalBps;
+        for (uint256 i = 0; i < caps.length; i++) {
+            if (caps[i] > 10_000) revert InvalidAllocationCap(caps[i]);
+            totalBps += caps[i];
+        }
+        if (totalBps < 10_000) revert InsufficientAllocationCapacity(totalBps);
     }
 
     // ── The on-chain gate ───────────────────────────────────────────────────

@@ -23,9 +23,9 @@ describe("Vault", () => {
       executor.address
     );
 
-    // 60% max BTC, 30% max RWA, 2% max slippage, 1 hour between rebalances
+    // 60% max BTC, 40% max RWA, 2% max slippage, 1 hour between rebalances
     const allowedAssets = [await btc.getAddress(), await rwa.getAddress()];
-    const maxAllocationBps = [6000, 3000];
+    const maxAllocationBps = [6000, 4000];
     const maxSlippageBps = 200;
     const minRebalanceInterval = 3600;
 
@@ -63,6 +63,14 @@ describe("Vault", () => {
     expect(await vault.maxSlippageBps()).to.equal(200);
   });
 
+  it("rejects risk parameters whose allocation capacity is below 100%", async () => {
+    const { vault, owner } = await loadFixture(deployFixture);
+
+    await expect(vault.connect(owner).updateRiskParams([2000, 2500], 200, 3600))
+      .to.be.revertedWithCustomError(vault, "InsufficientAllocationCapacity")
+      .withArgs(4500);
+  });
+
   it("reverts a rebalance that exceeds the owner's max allocation for an asset", async () => {
     const { vault, executor, btc, rwa, router } = await loadFixture(deployFixture);
 
@@ -79,7 +87,7 @@ describe("Vault", () => {
       amountIn: ethers.parseEther("1"),
       expectedAmountOut: ethers.parseEther("50"),
       minAmountOut: ethers.parseEther("49"),
-      targetAllocationBps: 3500, // exceeds the 3000 cap set at creation
+      targetAllocationBps: 4500, // exceeds the 4000 cap set at creation
       swapCalldata,
     };
 

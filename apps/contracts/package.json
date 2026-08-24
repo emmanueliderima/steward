@@ -2,21 +2,30 @@
   "name": "@steward/contracts",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@11.17.0",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
     "deploy:testnet": "hardhat run scripts/deploy.ts --network xlayerTestnet",
-    "deploy:mainnet": "hardhat run scripts/deploy.ts --network xlayerMainnet"
+    "deploy:mainnet": "hardhat run scripts/deploy.ts --network xlayerMainnet",
+    "deploy:test": "hardhat run scripts/deploy-testnet.ts --network xlayerTestnet",
+    "check:testnet": "hardhat run scripts/check-testnet-deployment.ts --network xlayerTestnet",
+    "fund:testnet-router": "hardhat run scripts/fund-testnet-router.ts --network xlayerTestnet"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.10",
+    "@nomicfoundation/hardhat-ignition": "^0.15.0",
     "hardhat": "^2.22.0",
     "dotenv": "^16.4.5",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "chai": "^4.5.0",
+    "ts-node": "^10.9.2"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^5.0.2",
-    "chai": "^6.2.2"
+    "@openzeppelin/contracts": "^5.0.2"
   }
 }

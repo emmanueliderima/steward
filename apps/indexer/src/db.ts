@@ -8,7 +8,11 @@ export async function getLastProcessedBlock(streamKey: string): Promise<number> 
     "select last_processed_block from indexer_state where stream_key = $1",
     [streamKey]
   );
-  return rows.length > 0 ? Number(rows[0].last_processed_block) : config.genesisBlock;
+  // Checkpoints represent the next block to scan. Ignore any block-zero
+  // checkpoint left behind by an earlier empty GENESIS_BLOCK configuration.
+  return rows.length > 0
+    ? Math.max(Number(rows[0].last_processed_block), config.genesisBlock)
+    : config.genesisBlock;
 }
 
 export async function setLastProcessedBlock(streamKey: string, block: number): Promise<void> {

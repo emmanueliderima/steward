@@ -3,6 +3,12 @@ import { config } from "./config";
 
 const BASE_URL = "https://web3.okx.com";
 
+interface OkxApiResponse {
+  code: string;
+  msg: string;
+  data: any[];
+}
+
 function sign(timestamp: string, method: string, requestPath: string, queryString: string): string {
   const prehash = timestamp + method + requestPath + queryString;
   return createHmac("sha256", config.okx.apiSecret).update(prehash).digest("base64");
@@ -23,10 +29,14 @@ async function signedGet(path: string, params: Record<string, string>): Promise<
     },
   });
 
-  const json = await res.json();
+  const json = (await res.json()) as OkxApiResponse;
+  if (!res.ok) {
+    throw new Error(`OKX API request failed (${res.status}): ${json.msg || res.statusText}`);
+  }
   if (json.code !== "0") {
     throw new Error(`OKX API error (${json.code}): ${json.msg}`);
   }
+  if (!json.data?.[0]) throw new Error("OKX API returned no route data");
   return json.data[0];
 }
 

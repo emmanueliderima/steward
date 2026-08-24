@@ -5,6 +5,7 @@ import type { RiskParams } from "@steward/shared-types";
 import { Vault__factory } from "@steward/contracts-sdk";
 import { useWallet } from "@/lib/wallet";
 import { formatBpsAsPercent } from "@/lib/format";
+import { waitForConfirmation } from "@/lib/transactions";
 
 export function RiskParamForm({
   vaultAddress,
@@ -32,6 +33,13 @@ export function RiskParamForm({
       // Order must match initial.allowedAssets exactly — the contract takes
       // a bare array, not a map, so this is the one place ordering matters.
       const newMaxAllocationBps = initial.allowedAssets.map((asset) => maxAllocation[asset]);
+      if (newMaxAllocationBps.some((cap) => cap === undefined || cap < 0 || cap > 10_000)) {
+        throw new Error("Every maximum allocation must be between 0% and 100%.");
+      }
+      const totalCapacityBps = newMaxAllocationBps.reduce((sum, cap) => sum + cap!, 0);
+      if (totalCapacityBps < 10_000) {
+        throw new Error("Maximum allocations must total at least 100% so a complete portfolio is possible.");
+      }
 
       const tx = await vault.updateRiskParams(
         newMaxAllocationBps,
@@ -39,7 +47,7 @@ export function RiskParamForm({
         minRebalanceIntervalSeconds
       );
       setStatus("confirming");
-      await tx.wait();
+      await waitForConfirmation(tx);
       setStatus("done");
     } catch (err: any) {
       setStatus("error");
@@ -50,8 +58,17 @@ export function RiskParamForm({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <div className="font-mono text-[11px] tracking-widest text-text-lo">
-          MAX ALLOCATION PER ASSET
+        <div className="flex justify-between font-mono text-[11px] tracking-widest text-text-lo">
+          <span>MAX ALLOCATION PER ASSET</span>
+          <span
+            className={
+              Object.values(maxAllocation).reduce((sum, cap) => sum + cap, 0) < 10_000
+                ? "text-reverted"
+                : "text-text-hi"
+            }
+          >
+            TOTAL {formatBpsAsPercent(Object.values(maxAllocation).reduce((sum, cap) => sum + cap, 0))}
+          </span>
         </div>
         <div className="mt-3 flex flex-col gap-4">
           {initial.allowedAssets.map((asset) => (

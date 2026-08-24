@@ -2,7 +2,15 @@ import { ethers } from "ethers";
 import { config } from "./config";
 import { Vault__factory, VaultFactory__factory, IERC20Metadata__factory } from "@steward/contracts-sdk";
 
-export const provider = new ethers.JsonRpcProvider(config.chain.rpcUrl);
+const rpcRequest = new ethers.FetchRequest(config.chain.rpcUrl);
+rpcRequest.timeout = 15_000;
+
+export const provider = new ethers.JsonRpcProvider(rpcRequest, undefined, {
+  staticNetwork: true,
+  // dRPC's free plan rejects JSON-RPC batches containing more than three
+  // requests. Concurrent vault reads must be sent independently.
+  batchMaxCount: 1,
+});
 export const executorWallet = new ethers.Wallet(config.chain.executorPrivateKey, provider);
 
 export function getFactory() {

@@ -2,10 +2,14 @@
   "name": "@steward/executor",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.6"
+  },
   "scripts": {
-    "start": "bun run src/index.ts",
-    "dev": "bun run --watch src/index.ts",
-    "run-test": "bun run --env-file=../../.env tests/tier2.test.ts"
+    "start": "node --env-file=../../.env --import tsx src/index.ts",
+    "dev": "tsx watch --env-file=../../.env src/index.ts",
+    "run-test": "bun test --env-file=../../.env tests",
+    "test:live": "bun test scripts/aiAgent.live.ts"
   },
   "dependencies": {
     "@steward/shared-types": "workspace:*",
@@ -13,11 +17,14 @@
     "ethers": "^6.13.0",
     "pg": "^8.12.0",
     "node-cron": "^3.0.3",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "@google/genai": "^2.17.1"
   },
   "devDependencies": {
+    "@types/node": "^26.2.0",
     "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.11.6",
+    "tsx": "^4.23.12",
     "typescript": "^5.5.0"
   }
 }

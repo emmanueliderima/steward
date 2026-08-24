@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { serve } from "@hono/node-server";
 import { config } from "./config";
 import { buildDashboardSummary } from "./dashboard-summary";
 import { getVaultsByOwner } from "./chain";
@@ -17,6 +18,7 @@ app.get("/config", (c) =>
   c.json({
     vaultFactoryAddress: config.vaultFactoryAddress,
     chainId: config.chainId,
+    testnetFaucetEnabled: config.testnetFaucetEnabled,
   })
 );
 
@@ -50,7 +52,15 @@ app.get("/vaults/:address/summary", async (c) => {
     const summary = await buildDashboardSummary(address);
     return c.json(summary);
   } catch (err: any) {
-    return c.json({ error: `Failed to build summary: ${err.message ?? err}` }, 500);
+    console.error(`Failed to build summary for ${address}:`, err);
+    const debug = err?.stack ?? err?.message ?? String(err);
+    return c.json(
+      {
+        error: "We couldn't load the latest vault data. Please try again shortly.",
+        ...(process.env.NODE_ENV !== "production" ? { debug } : {}),
+      },
+      503
+    );
   }
 });
 
@@ -82,9 +92,6 @@ app.get("/vaults/:address/transfers", async (c) => {
   return c.json({ transfers });
 });
 
-console.log(`Steward API starting on port 3001`);
-
-export default {
-  port: 3001,
-  fetch: app.fetch,
-};
+serve({ fetch: app.fetch, port: 3001 }, (info) => {
+  console.log(`Steward API listening on http://localhost:${info.port}`);
+});

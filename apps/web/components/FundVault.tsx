@@ -3,8 +3,13 @@
 import { useEffect, useState } from "react";
 import { formatUnits, parseUnits } from "ethers";
 import type { AssetOverviewRow } from "@steward/shared-types";
-import { IERC20Metadata__factory, Vault__factory } from "@steward/contracts-sdk";
+import {
+  IERC20Metadata__factory,
+  MockERC20__factory,
+  Vault__factory,
+} from "@steward/contracts-sdk";
 import { useWallet } from "@/lib/wallet";
+import { waitForConfirmation } from "@/lib/transactions";
 
 type Status =
   | "idle"
@@ -16,16 +21,26 @@ type Status =
   | "done"
   | "error";
 
+type FaucetStatus = "idle" | "minting" | "done" | "error";
+
+const FAUCET_TARGET_BY_SYMBOL: Record<string, string> = {
+  mBTC: "1",
+  mETH: "10",
+  mRWA: "1000",
+};
+
 export function FundVault({
   vaultAddress,
   assets,
   chainId,
+  testnetFaucetEnabled,
   emphasized = false,
   onFunded,
 }: {
   vaultAddress: string;
   assets: AssetOverviewRow[];
   chainId: number;
+  testnetFaucetEnabled: boolean;
   emphasized?: boolean;
   onFunded: () => void;
 }) {
@@ -35,6 +50,8 @@ export function FundVault({
   const [walletBalance, setWalletBalance] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [faucetStatus, setFaucetStatus] = useState<FaucetStatus>("idle");
+  const [faucetError, setFaucetError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!assets.some((asset) => asset.address === selectedToken)) {
@@ -70,9 +87,11 @@ export function FundVault({
       const signer = await getSigner();
       const token = IERC20Metadata__factory.connect(selectedToken, signer);
       const vault = Vault__factory.connect(vaultAddress, signer);
+
       const decimals = Number(await token.decimals());
       const parsedAmount = parseUnits(amount, decimals);
       if (parsedAmount <= 0n) throw new Error("Enter an amount greater than zero.");
+
 
       const [balance, allowance] = await Promise.all([
         token.balanceOf(address),
@@ -84,13 +103,13 @@ export function FundVault({
         setStatus("approval-signing");
         const approval = await token.approve(vaultAddress, parsedAmount);
         setStatus("approval-confirming");
-        await approval.wait();
+        await waitForConfirmation(approval);
       }
 
       setStatus("deposit-signing");
       const deposit = await vault.deposit(selectedToken, parsedAmount);
       setStatus("deposit-confirming");
-      await deposit.wait();
+      await waitForConfirmation(deposit);
 
       setAmount("");
       setStatus("done");
@@ -99,6 +118,39 @@ export function FundVault({
     } catch (err: any) {
       setStatus("error");
       setError(err.shortMessage ?? err.reason ?? err.message ?? String(err));
+    }
+  }
+
+  async function handleGetTestnetTokens() {
+    if (!address || !testnetFaucetEnabled) return;
+    setFaucetStatus("minting");
+    setFaucetError(null);
+
+    try {
+      await ensureExpectedChain(chainId);
+      const signer = await getSigner();
+
+      for (const asset of assets) {
+        const targetText = FAUCET_TARGET_BY_SYMBOL[asset.symbol];
+        if (!targetText) continue;
+
+        const token = MockERC20__factory.connect(asset.address, signer);
+        const decimals = Number(await token.decimals());
+        const [current, target] = [
+          await token.balanceOf(address),
+          parseUnits(targetText, decimals),
+        ];
+        if (current >= target) continue;
+
+        const mint = await token.mint(address, target - current);
+        await waitForConfirmation(mint);
+      }
+
+      setFaucetStatus("done");
+      await refreshBalance();
+    } catch (err: any) {
+      setFaucetStatus("error");
+      setFaucetError(err.shortMessage ?? err.reason ?? err.message ?? String(err));
     }
   }
 
@@ -130,6 +182,32 @@ export function FundVault({
           </span>
         )}
       </div>
+
+      {testnetFaucetEnabled && (
+        <div className="mt-4 border border-pending/30 bg-pending/5 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-mono text-[11px] text-pending">TESTNET FAUCET</p>
+              <p className="mt-1 text-[11px] text-text-lo">
+                Tops your wallet up to 1 mBTC, 10 mETH, and 1,000 mRWA. You still need testnet OKB for gas.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleGetTestnetTokens}
+              disabled={faucetStatus === "minting" || assets.length === 0}
+              className="border border-pending/40 px-4 py-2 font-mono text-[11px] text-pending hover:opacity-80 disabled:cursor-wait disabled:opacity-50"
+            >
+              {faucetStatus === "minting"
+                ? "CONFIRM MINTS IN WALLET…"
+                : faucetStatus === "done"
+                  ? "TOKENS READY"
+                  : "GET TESTNET TOKENS"}
+            </button>
+          </div>
+          {faucetError && <p className="mt-2 text-xs text-reverted">{faucetError}</p>}
+        </div>
+      )}
 
       {assets.length === 0 ? (
         <p className="mt-4 text-sm text-pending">Loading the vault's allowed assets…</p>

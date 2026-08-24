@@ -6,11 +6,48 @@ import {
 } from "@steward/contracts-sdk";
 import { config } from "./config";
 
-export const provider = new ethers.JsonRpcProvider(config.rpcUrl);
+const providers = config.rpcUrls.map((url) => {
+  const request = new ethers.FetchRequest(url);
+  request.timeout = 15_000;
+  return new ethers.JsonRpcProvider(request, config.chainId, {
+    staticNetwork: true,
+    // Some public RPC gateways are unreliable with JSON-RPC batch payloads.
+    batchMaxCount: 1,
+  });
+});
+
+async function withRpcRetry<T>(
+  operation: (provider: ethers.JsonRpcProvider) => Promise<T>,
+  attempts = Math.max(3, providers.length)
+): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const providerIndex = (attempt - 1) % providers.length;
+    const provider = providers[providerIndex]!;
+    try {
+      return await operation(provider);
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `X Layer RPC attempt ${attempt}/${attempts} failed via ${config.rpcUrls[providerIndex]}:`,
+        error
+      );
+      if (attempt < attempts) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 400));
+      }
+    }
+  }
+
+  throw lastError;
+}
 
 export async function getVaultsByOwner(ownerAddress: string): Promise<string[]> {
-  const factory = VaultFactory__factory.connect(config.vaultFactoryAddress, provider);
-  return factory.getVaultsByOwner(ownerAddress);
+  return withRpcRetry((provider) =>
+    VaultFactory__factory.connect(config.vaultFactoryAddress, provider).getVaultsByOwner(
+      ownerAddress
+    )
+  );
 }
 
 export interface LiveVaultState {
@@ -24,6 +61,13 @@ export interface LiveVaultState {
 }
 
 export async function readLiveVaultState(vaultAddress: string): Promise<LiveVaultState> {
+  return withRpcRetry((provider) => readLiveVaultStateOnce(vaultAddress, provider));
+}
+
+async function readLiveVaultStateOnce(
+  vaultAddress: string,
+  provider: ethers.JsonRpcProvider
+): Promise<LiveVaultState> {
   const vault = Vault__factory.connect(vaultAddress, provider);
 
   const [owner, allowedAssets, minRebalanceInterval] = await Promise.all([

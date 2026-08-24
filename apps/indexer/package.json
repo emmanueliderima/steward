@@ -2,9 +2,12 @@
   "name": "@steward/indexer",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.6"
+  },
   "scripts": {
-    "start": "bun run src/index.ts",
-    "dev": "bun run --watch src/index.ts"
+    "start": "node --env-file=../../.env --import tsx src/index.ts",
+    "dev": "node --env-file=../../.env --import tsx --watch src/index.ts"
   },
   "dependencies": {
     "@steward/contracts-sdk": "workspace:*",
@@ -13,8 +16,9 @@
     "dotenv": "^16.4.5"
   },
   "devDependencies": {
+    "@types/node": "^26.2.0",
     "@types/pg": "^8.11.6",
-    "typescript": "^5.5.0",
-    "@types/bun": "latest"
+    "tsx": "^4.23.12",
+    "typescript": "^5.5.0"
   }
 }

@@ -15,6 +15,7 @@ import { FundVault } from "@/components/FundVault";
 interface PublicConfig {
   vaultFactoryAddress: string;
   chainId: number;
+  testnetFaucetEnabled: boolean;
 }
 
 export default function DashboardPage() {
@@ -26,6 +27,11 @@ export default function DashboardPage() {
   const [newlyCreated, setNewlyCreated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const showLoadError = useCallback((context: string, err: unknown) => {
+    console.error(`[Steward dashboard] ${context}:`, err);
+    setError("We couldn't load your vault right now. Please check your connection and try again.");
+  }, []);
 
   const loadVault = useCallback(async (vault: string) => {
     setVaultAddress(vault);
@@ -60,22 +66,22 @@ export default function DashboardPage() {
         }
         await loadVault(vaults[0]);
       })
-      .catch((err) => setError(err.message ?? String(err)))
+      .catch((err) => showLoadError("initial vault load failed", err))
       .finally(() => setLoading(false));
-  }, [address, loadVault]);
+  }, [address, loadVault, showLoadError]);
 
   function handleVaultCreated(createdVault: string) {
     setNewlyCreated(true);
     setError(null);
     setLoading(true);
     loadVault(createdVault)
-      .catch((err) => setError(err.message ?? String(err)))
+      .catch((err) => showLoadError("new vault summary load failed", err))
       .finally(() => setLoading(false));
   }
 
   function refreshVault() {
     if (!vaultAddress) return;
-    loadVault(vaultAddress).catch((err) => setError(err.message ?? String(err)));
+    loadVault(vaultAddress).catch((err) => showLoadError("vault refresh failed", err));
   }
 
   if (!address) {
@@ -102,7 +108,18 @@ export default function DashboardPage() {
       <TopBar vaultAddress={vaultAddress ?? undefined} />
       <main className="mx-auto max-w-4xl px-6 py-8">
         {loading && <div className="text-sm text-text-lo">Loading vault state…</div>}
-        {error && <div className="text-sm text-reverted">{error}</div>}
+        {error && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border border-reverted/30 bg-reverted/5 p-4 text-sm text-reverted">
+            <span>{error}</span>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="border border-reverted/40 px-3 py-1 font-mono text-[11px] hover:opacity-80"
+            >
+              TRY AGAIN
+            </button>
+          </div>
+        )}
 
         {!loading && !error && !vaultAddress && publicConfig && (
           <VaultOnboarding
@@ -145,6 +162,7 @@ export default function DashboardPage() {
                 vaultAddress={summary.vaultAddress}
                 assets={summary.assets}
                 chainId={publicConfig.chainId}
+                testnetFaucetEnabled={publicConfig.testnetFaucetEnabled}
                 emphasized={newlyCreated || summary.totalValueUsd === 0}
                 onFunded={refreshVault}
               />

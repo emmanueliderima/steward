@@ -17,7 +17,9 @@ async function processVault(vaultAddress: string): Promise<void> {
     maxSlippageBps: state.maxSlippageBps,
   });
 
-  const prices = await fetchPrices(state.allowedAssets);
+  const prices = await fetchPrices(
+    state.allowedAssets.map((address) => ({ address, symbol: state.symbols[address]! }))
+  );
   const missingPrices = state.allowedAssets.filter((a) => prices[a] === undefined);
   if (missingPrices.length > 0) {
     console.warn(`[${vaultAddress}] missing prices for ${missingPrices.join(", ")}, skipping this cycle`);
@@ -36,6 +38,18 @@ async function processVault(vaultAddress: string): Promise<void> {
     return;
   }
 
+  const totalAllocationCapacity = state.allowedAssets.reduce(
+    (sum, asset) => sum + state.maxAllocationBps[asset]!,
+    0
+  );
+  if (totalAllocationCapacity < 10_000) {
+    console.warn(
+      `[${vaultAddress}] allocation caps total ${totalAllocationCapacity}bps; ` +
+        "at least 10000bps is required. Owner must update vault settings; skipping this cycle."
+    );
+    return;
+  }
+
   const sentiment = await fetchSentiment();
   const currentWeightsBps: Record<string, number> = {};
   for (const asset of state.allowedAssets) {
@@ -48,9 +62,9 @@ async function processVault(vaultAddress: string): Promise<void> {
     vaultAddress: state.address,
     assets: state.allowedAssets.map((a) => ({
       address: a,
-      symbol: state.symbols[a],
-      priceUsd: prices[a],
-      maxAllocationBps: state.maxAllocationBps[a],
+      symbol: state.symbols[a]!,
+      priceUsd: prices[a]!,
+      maxAllocationBps: state.maxAllocationBps[a]!,
     })),
     currentWeightsBps,
     sentiment,

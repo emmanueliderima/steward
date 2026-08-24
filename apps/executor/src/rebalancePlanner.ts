@@ -1,6 +1,7 @@
 import { ethers } from "ethers";
 import type { VaultState, SwapInstructionInput } from "./chain";
 import { getSwapTransaction } from "./okx";
+import { config } from "./config";
 
 const DUST_THRESHOLD_BPS = 50; // ignore drift smaller than 0.5%, not worth a swap
 
@@ -51,8 +52,8 @@ export function planRebalanceLegs(input: PlanInput): { tokenIn: string; tokenOut
   let di = 0;
 
   while (ei < excess.length && di < deficit.length) {
-    const e = excess[ei];
-    const d = deficit[di];
+    const e = excess[ei]!;
+    const d = deficit[di]!;
     const amount = Math.min(e.usd, d.usd);
 
     legs.push({ tokenIn: e.asset, tokenOut: d.asset, amountInUsd: amount });
@@ -79,8 +80,50 @@ export async function buildSwapInstruction(
 ): Promise<SwapInstructionInput> {
   const priceIn = prices[leg.tokenIn];
   const decimalsIn = vaultState.decimals[leg.tokenIn];
+  if (!priceIn || decimalsIn === undefined) {
+    throw new Error(`Missing price or decimals for input token ${leg.tokenIn}`);
+  }
   const amountInHuman = leg.amountInUsd / priceIn;
   const amountIn = ethers.parseUnits(amountInHuman.toFixed(decimalsIn), decimalsIn);
+
+  if (config.okx.useMockRouter) {
+    const priceOut = prices[leg.tokenOut];
+    const decimalsOut = vaultState.decimals[leg.tokenOut];
+    if (!priceOut || decimalsOut === undefined) {
+      throw new Error(`Missing price or decimals for output token ${leg.tokenOut}`);
+    }
+    if (vaultState.okxRouter.toLowerCase() !== config.okx.mockRouterAddress.toLowerCase()) {
+      throw new Error(
+        `Mock router mismatch: config has ${config.okx.mockRouterAddress}, vault has ${vaultState.okxRouter}`
+      );
+    }
+
+    const amountOutHuman = leg.amountInUsd / priceOut;
+    const expectedAmountOut = ethers.parseUnits(
+      amountOutHuman.toFixed(decimalsOut),
+      decimalsOut
+    );
+    const minAmountOut =
+      (expectedAmountOut * BigInt(10_000 - vaultState.maxSlippageBps)) / 10_000n;
+    const mockRouter = new ethers.Interface([
+      "function swap(address tokenIn,uint256 amountIn,address tokenOut,uint256 amountOut)",
+    ]);
+
+    return {
+      tokenIn: leg.tokenIn,
+      tokenOut: leg.tokenOut,
+      amountIn,
+      expectedAmountOut,
+      minAmountOut,
+      targetAllocationBps: targetWeightsBps[leg.tokenOut] ?? 0,
+      swapCalldata: mockRouter.encodeFunctionData("swap", [
+        leg.tokenIn,
+        amountIn,
+        leg.tokenOut,
+        expectedAmountOut,
+      ]),
+    };
+  }
 
   const slippagePercent = (vaultState.maxSlippageBps / 100).toString();
 

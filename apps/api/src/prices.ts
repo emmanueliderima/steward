@@ -21,12 +21,6 @@ const COINGECKO_IDS: Record<string, string> = {
 // Static fallback for the mock tokens from scripts/deployTestnetMock.ts, so
 // the dashboard shows real-looking numbers when pointed at a Tier 3 fixture
 // instead of erroring on missing prices.
-const MOCK_PRICE_BY_SYMBOL: Record<string, number> = {
-  mBTC: 60000,
-  mETH: 3000,
-  mRWA: 100,
-};
-
 export async function fetchPrices(tokens: TokenMeta[]): Promise<PriceData> {
   const prices: PriceData = {};
 
@@ -47,8 +41,8 @@ export async function fetchPrices(tokens: TokenMeta[]): Promise<PriceData> {
   }
 
   for (const t of tokens) {
-    if (prices[t.address] === undefined && MOCK_PRICE_BY_SYMBOL[t.symbol] !== undefined) {
-      prices[t.address] = MOCK_PRICE_BY_SYMBOL[t.symbol]!;
+    if (prices[t.address] === undefined && config.mockPrices[t.symbol] !== undefined) {
+      prices[t.address] = config.mockPrices[t.symbol]!;
     }
   }
 

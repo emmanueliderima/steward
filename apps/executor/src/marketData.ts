@@ -4,6 +4,11 @@ export interface PriceData {
   [tokenAddress: string]: number; // USD price
 }
 
+export interface TokenMeta {
+  address: string;
+  symbol: string;
+}
+
 // Maps your on-chain asset addresses to CoinGecko IDs. RWA tokens generally
 // aren't on CoinGecko — extend this with whatever price source your specific
 // RWA token uses (its own oracle, a DEX pool price, or a hardcoded testnet
@@ -13,27 +18,38 @@ const COINGECKO_IDS: Record<string, string> = {
   // "0xETH_TOKEN_ADDRESS": "ethereum",
 };
 
-export async function fetchPrices(tokenAddresses: string[]): Promise<PriceData> {
-  const ids = tokenAddresses
-    .map((addr) => COINGECKO_IDS[addr.toLowerCase()])
+export async function fetchPrices(tokens: TokenMeta[]): Promise<PriceData> {
+  const ids = tokens
+    .map((token) => COINGECKO_IDS[token.address.toLowerCase()])
     .filter(Boolean);
 
-  if (ids.length === 0) return {};
-
-  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(",")}&vs_currencies=usd`;
-  const res = await fetch(url, {
-    headers: config.marketData.coingeckoApiKey
-      ? { "x-cg-demo-api-key": config.marketData.coingeckoApiKey }
-      : {},
-  });
-
-  if (!res.ok) throw new Error(`CoinGecko request failed: ${res.status}`);
-  const json = (await res.json()) as Record<string, { usd: number }>;
-
   const prices: PriceData = {};
-  for (const [address, cgId] of Object.entries(COINGECKO_IDS)) {
-    if (json[cgId]) prices[address] = json[cgId].usd;
+  if (ids.length > 0) {
+    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${[...new Set(ids)].join(",")}&vs_currencies=usd`;
+    const res = await fetch(url, {
+      headers: config.marketData.coingeckoApiKey
+        ? { "x-cg-demo-api-key": config.marketData.coingeckoApiKey }
+        : {},
+    });
+
+    if (!res.ok) throw new Error(`CoinGecko request failed: ${res.status}`);
+    const json = (await res.json()) as Record<string, { usd: number }>;
+
+    for (const token of tokens) {
+      const cgId = COINGECKO_IDS[token.address.toLowerCase()];
+      if (cgId && json[cgId]) prices[token.address] = json[cgId].usd;
+    }
   }
+
+  if (config.okx.useMockRouter) {
+    for (const token of tokens) {
+      const mockPrice = config.marketData.mockPrices[token.symbol];
+      if (prices[token.address] === undefined && mockPrice !== undefined) {
+        prices[token.address] = mockPrice;
+      }
+    }
+  }
+
   return prices;
 }
 

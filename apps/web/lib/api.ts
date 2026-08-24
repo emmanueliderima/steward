@@ -5,7 +5,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { cache: "no-store" });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+    const body = (await res.json().catch(() => ({}))) as { error?: string; debug?: string };
+    console.error(`[Steward API] GET ${path} failed (${res.status})`, body.debug ?? body.error);
     throw new Error(body.error ?? `Request to ${path} failed (${res.status})`);
   }
   return res.json();
@@ -13,7 +14,9 @@ async function get<T>(path: string): Promise<T> {
 
 export const api = {
   getConfig: () =>
-    get<{ vaultFactoryAddress: string; chainId: number }>("/config"),
+    get<{ vaultFactoryAddress: string; chainId: number; testnetFaucetEnabled: boolean }>(
+      "/config"
+    ),
   getVaultsByOwner: (owner: string) => get<{ vaults: string[] }>(`/vaults?owner=${owner}`),
   getSummary: (vaultAddress: string) => get<DashboardSummary>(`/vaults/${vaultAddress}/summary`),
   getRiskParams: (vaultAddress: string) => get<RiskParams>(`/vaults/${vaultAddress}/risk-params`),

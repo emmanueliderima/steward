@@ -58,9 +58,8 @@ export async function syncFactory(latestBlock: number): Promise<void> {
       console.log(`[factory] discovered new vault: ${vaultAddress}`);
       await readAndSyncRiskParams(vaultAddress);
     }
+    await db.setLastProcessedBlock(streamKey, chunkTo + 1);
   }
-
-  await db.setLastProcessedBlock(streamKey, latestBlock);
 }
 
 /** Scans one vault for risk-param updates, deposits/withdrawals, and rebalances. */
@@ -138,7 +137,6 @@ export async function syncVault(vaultAddress: string, latestBlock: number): Prom
         swaps,
       });
     }
+    await db.setLastProcessedBlock(streamKey, chunkTo + 1);
   }
-
-  await db.setLastProcessedBlock(streamKey, latestBlock);
 }
