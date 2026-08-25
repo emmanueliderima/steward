@@ -14,7 +14,7 @@ function sign(timestamp: string, method: string, requestPath: string, queryStrin
   return createHmac("sha256", config.okx.apiSecret).update(prehash).digest("base64");
 }
 
-async function signedGet(path: string, params: Record<string, string>): Promise<any> {
+export async function signedGet(path: string, params: Record<string, string>): Promise<any> {
   const timestamp = new Date().toISOString();
   const query = "?" + new URLSearchParams(params).toString();
   const requestPath = `/api/v6/dex/${path}`;
